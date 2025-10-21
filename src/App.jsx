@@ -1,18 +1,18 @@
-import { useState, useMemo, useId } from "react";
+import { useState, Fragment, useMemo, useId } from "react";
 import { AgGridReact } from "ag-grid-react";
 
 import FormInput from "./components/FormInput";
 // import reports from "./data/reports";
-import fakeGroups from "./data/groups";
+// import fakeGroups from "./data/groups";
 import Modal from "./components/Modal";
 import useData from "./hooks/useData";
-import fakeUsers from "./data/users";
+// import fakeUsers from "./data/users";
 
-const uniqueFakeUsers = new Set(fakeUsers.map(({ id }) => id));
+// const uniqueFakeUsers = new Set(fakeUsers.map(({ id }) => id));
 
-const uniqueFakeGroups = new Set(fakeGroups.map(({ id }) => id));
+// const uniqueFakeGroups = new Set(fakeGroups.map(({ id }) => id));
 
-const sortedFakeGroups = [...uniqueFakeGroups].sort();
+// const sortedFakeGroups = [...uniqueFakeGroups].sort();
 
 // how are reports, groups, and users linked?
 // each user can belong to many groups
@@ -74,34 +74,28 @@ const sortedFakeGroups = [...uniqueFakeGroups].sort();
 //     }))
 //   );
 
-const url = "https://irserver2.eku.edu/Apps/DataPage/PROD/auth";
+// const reportColDefs = [
+//   { field: "report_id" },
+//   { field: "report_title" },
+//   { field: "report_active" },
+//   { field: "report_link" },
+//   { field: "report_groups" },
+// ];
 
-const reportsUrl = `${url}/reports_list_api`;
+// const userColDefs = [
+//   { field: "user_id" },
+//   { valueFormatter: ({ value }) => value.join(), field: "Groups" },
+// ];
 
-const getUserUrl = (activeUser) =>
-  activeUser ? `${url}/user_api/${activeUser}` : null;
-
-const getAccessUrl = (activeReport) =>
-  activeReport ? `${url}/report_access_api/${activeReport}` : null;
-
-const reportColDefs = [
-  { field: "report_id" },
-  { field: "report_title" },
-  { field: "report_active" },
-  { field: "report_link" },
-  { field: "report_groups" },
-];
-
-const userColDefs = [
-  { field: "user_id" },
-  { valueFormatter: ({ value }) => value.join(), field: "Groups" },
-];
-
-const FormCheck = ({ type = "checkbox", children, ...rest }) => {
+const FormCheck = ({ type = "checkbox", inline = true, children, ...rest }) => {
   const id = useId();
 
+  const className = ["form-check", inline && "form-check-inline"]
+    .filter((el) => el)
+    .join(" ");
+
   return (
-    <div className="form-check">
+    <div className={className}>
       <input className="form-check-input" type={type} id={id} {...rest} />
       <label className="form-check-label" htmlFor={id}>
         {children}
@@ -125,13 +119,26 @@ const FormCheck = ({ type = "checkbox", children, ...rest }) => {
 // change user being active (api call)
 // change groups user can access through interface (save triggers api call where user id & now active groups are passed)
 
-const ignoreHaving = new Set(["active", "groups", "moved", "id"]);
+const binaryIndicators = new Set(["active", "moved"]);
+
+const ignoreHaving = new Set(["groups", "id", ...binaryIndicators]);
 
 const removeIgnored = (array, set = ignoreHaving) =>
   !array.some((el) => set.has(el));
 
+const url = "https://irserver2.eku.edu/Apps/DataPage/PROD/auth";
+
+const reportsUrl = `${url}/reports_list_api`;
+
+const getAccessUrl = (repId) =>
+  repId ? `${url}/report_access_api/${repId}` : null;
+
+const getUserUrl = (userId) => (userId ? `${url}/user_api/${userId}` : null);
+
 export default function App() {
-  const idKey = "report_id";
+  const repIdKey = "report_id";
+
+  const repGroupsKey = "report_groups";
 
   const [modifiedReps, setModifiedReps] = useState([]);
 
@@ -144,41 +151,58 @@ export default function App() {
 
     const store = {};
 
-    arr.forEach((el) => (store[el[idKey]] = el));
+    arr.forEach((el) => (store[el[repIdKey]] = el));
 
-    modifiedReps.forEach((el) => (store[el[idKey]] = el));
+    modifiedReps.forEach((el) => (store[el[repIdKey]] = el));
 
     return Object.values(store);
   };
 
   const repData = replaceReps(reps);
 
+  const allRepGroups = [
+    ...new Set(
+      repData
+        .map(({ [repGroupsKey]: groups }) => groups)
+        .filter((el) => typeof el === "string")
+        .map((str) => str.split(","))
+        .flat()
+    ),
+  ].sort();
+
   const clickedRep = repData.find(
-    ({ [idKey]: repId }) => repId === clickedRepId
+    ({ [repIdKey]: repId }) => repId === clickedRepId
   );
 
-  const repColDefs = useMemo(
-    () => [
-      { field: "report_active" },
-      { field: "report_id" },
-      { field: "report_title" },
-      { field: "report_link" },
-    ],
-    []
-  );
+  const repColDefs = [
+    { field: "report_active" },
+    { field: repIdKey },
+    { field: "report_title" },
+    { field: "report_link" },
+  ];
 
-  const onRepRowClicked = ({ data: { [idKey]: repId } }) =>
+  const onRepRowClicked = ({ data: { [repIdKey]: repId } }) =>
     setClickedRepId((id) => (id !== repId ? repId : null));
 
+  const repGrid = (
+    <div style={{ height: 500 }}>
+      <AgGridReact
+        onRowClicked={onRepRowClicked}
+        columnDefs={repColDefs}
+        rowData={repData}
+      />
+    </div>
+  );
+
   const [modalActive, setModalActive] = useState(false);
+
+  const [pendingRep, setPendingRep] = useState({});
 
   const toggleModal = () => {
     setModalActive((status) => !status);
 
     setClickedRepId(null);
   };
-
-  const [pendingRep, setPendingRep] = useState({});
 
   if (clickedRepId && !modalActive) {
     setModalActive(true);
@@ -197,7 +221,7 @@ export default function App() {
 
   const saveChanges = () => {
     setModifiedReps((arr) => [
-      ...arr.filter((el) => el[idKey] !== pendingRep[idKey]),
+      ...arr.filter((el) => el[repIdKey] !== pendingRep[repIdKey]),
       pendingRep,
     ]);
 
@@ -215,43 +239,205 @@ export default function App() {
     </>
   );
 
+  const accessUrl = getAccessUrl(clickedRepId);
+
+  const accessRows = useData(accessUrl);
+
+  const accessData = [accessRows].filter((el) => el).flat();
+
+  const userIdKey = "user_id";
+
+  const [clickedUserId, setClickedUserId] = useState(null);
+
+  const clickedUser = accessData.find(
+    ({ [userIdKey]: userId }) => userId === clickedUserId
+  );
+
+  const accessColDefs = [
+    { field: userIdKey },
+    {
+      valueFormatter: ({ value }) =>
+        [value]
+          .filter((el) => el)
+          .flat()
+          .join(", "),
+      field: "Groups",
+    },
+  ];
+
+  const onUserRowClicked = ({ data: { [userIdKey]: userId } }) =>
+    setClickedUserId((id) => (id !== userId ? userId : null));
+
+  const accessGrid = clickedRepId && (
+    <div>
+      <AgGridReact
+        // onRowClicked={onUserRowClicked}
+        columnDefs={accessColDefs}
+        domLayout="autoHeight"
+        rowData={accessData}
+      />
+    </div>
+  );
+
+  const userUrl = getUserUrl(clickedUserId);
+
+  const userData = useData(userUrl);
+
+  const user = clickedUserId ? userData : { Reports: [], Groups: [] };
+
+  const userReports = user.Reports;
+
+  const userGrid = clickedUserId && (
+    <div style={{ height: 500 }}>
+      <AgGridReact
+        // onRowClicked={onRepRowClicked}
+        columnDefs={repColDefs}
+        rowData={userReports}
+      />
+    </div>
+  );
+
+  const [notEditing, setNotEditing] = useState();
+
+  const modalTitle = (
+    <div className="d-flex flex-wrap gap-2">
+      <div>{clickedRepId}</div>
+      <div className="btn-group" role="group">
+        <button
+          className={["btn btn-primary", !notEditing && "active"]
+            .filter((el) => el)
+            .join(" ")}
+          onClick={() => setNotEditing(false)}
+          type="button"
+        >
+          Details
+        </button>
+        <button
+          className={["btn btn-primary", notEditing && "active"]
+            .filter((el) => el)
+            .join(" ")}
+          onClick={() => setNotEditing(true)}
+          type="button"
+        >
+          Users
+        </button>
+      </div>
+    </div>
+  );
+
+  const checkedGroups = useMemo(
+    () =>
+      typeof pendingRep[repGroupsKey] === "string"
+        ? new Set(pendingRep[repGroupsKey].split(","))
+        : new Set(),
+    [pendingRep]
+  );
+
+  const isGroupChecked = (group) => checkedGroups.has(group);
+
+  const handleGroupsChange = ({ target: { value } }) =>
+    setPendingRep((report) => {
+      const selected =
+        typeof report[repGroupsKey] === "string"
+          ? new Set(report[repGroupsKey].split(","))
+          : new Set();
+
+      selected.has(value) ? selected.delete(value) : selected.add(value);
+
+      const groups = [...selected].join();
+
+      return { ...report, [repGroupsKey]: groups };
+    });
+
+  const handleBinaryChanged = ({ target: { value, name } }) =>
+    setPendingRep((report) => ({ ...report, [name]: value }));
+
+  const renderBinaryForm = (name) => (
+    <div className="mb-3">
+      <label className="form-label">
+        {name} (<i className="small text-success">{clickedRep[name]}</i>)
+      </label>
+      <div>
+        {["Y", "N"].map((value) => (
+          <FormCheck
+            checked={pendingRep[name] === value}
+            onChange={handleBinaryChanged}
+            value={value}
+            name={name}
+            key={value}
+          >
+            {value}
+          </FormCheck>
+        ))}
+      </div>
+    </div>
+  );
+
+  const binaryForms = !clickedRep
+    ? []
+    : Object.keys(clickedRep)
+        .filter((name) =>
+          name.split("_").some((segment) => binaryIndicators.has(segment))
+        )
+        .map((name) => renderBinaryForm(name));
+
+  const groupsForm = clickedRep && (
+    <div className="mb-3">
+      <label className="form-label">
+        {repGroupsKey} (
+        <i className="small text-success">{clickedRep[repGroupsKey]}</i>)
+      </label>
+      <div className="overflow-y-scroll">
+        {allRepGroups.map((value) => (
+          <FormCheck
+            checked={isGroupChecked(value)}
+            onChange={handleGroupsChange}
+            inline={false}
+            value={value}
+            key={value}
+          >
+            {value}
+          </FormCheck>
+        ))}
+      </div>
+    </div>
+  );
+
+  const textForms = !clickedRep
+    ? []
+    : Object.entries(clickedRep)
+        .filter(([key]) => removeIgnored(key.split("_")))
+        .map(([name, value]) => (
+          <FormInput
+            label={
+              <>
+                {name} (<i className="small text-success">{clickedRep[name]}</i>
+                )
+              </>
+            }
+            value={pendingRep[name] ? pendingRep[name] : ""}
+            onChange={onTextInputChange}
+            placeholder={value}
+            name={name}
+            key={name}
+          ></FormInput>
+        ));
+
+  const editForm = [...binaryForms, ...textForms, groupsForm].map(
+    (child, i) => <Fragment key={i}>{child}</Fragment>
+  );
+
+  const modalBody = notEditing ? accessGrid : editForm;
+
   return (
     <>
-      <div style={{ height: 500 }}>
-        <AgGridReact
-          onRowClicked={onRepRowClicked}
-          columnDefs={repColDefs}
-          rowData={repData}
-        />
-      </div>
+      {repGrid}
       <Modal
-        body={
-          <>
-            {clickedRep &&
-              Object.entries(clickedRep)
-                .filter(([key]) => removeIgnored(key.split("_")))
-                .map(([name, value]) => (
-                  <FormInput
-                    label={
-                      <>
-                        {name} (
-                        <i className="small text-success">{clickedRep[name]}</i>
-                        )
-                      </>
-                    }
-                    value={pendingRep[name] ? pendingRep[name] : ""}
-                    onChange={onTextInputChange}
-                    placeholder={value}
-                    name={name}
-                    key={name}
-                  ></FormInput>
-                ))}
-          </>
-        }
-        title={clickedRepId}
         active={modalActive}
         footer={modalFooter}
         close={toggleModal}
+        title={modalTitle}
+        body={modalBody}
       ></Modal>
     </>
   );
