@@ -41,6 +41,8 @@ export default function GridsPage({
 
   const rowData = replaceRows(rows);
 
+  //   console.log(originalRows);
+
   const clickedRow = rowData.find(
     ({ [primaryIdKey]: rowId }) => rowId === clickedRowId
   );

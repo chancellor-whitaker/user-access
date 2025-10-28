@@ -36,9 +36,12 @@ const tab1Props = {
 const tab2Props = {
   primaryDataAccessor: (data) =>
     data
-      ? Object.entries(data).map(([user_id, object]) => ({
+      ? Object.entries(data).map(([user_id, { user_active, groups }]) => ({
+          groups: !Array.isArray(groups)
+            ? null
+            : groups.map(({ acl_report_id }) => acl_report_id).join(),
+          user_active,
           user_id,
-          ...object,
         }))
       : null,
   secondaryColDefs: [
@@ -52,6 +55,7 @@ const tab2Props = {
   secondaryDataAccessor: (data) => (data ? data.Reports : null),
   primaryUrl: `${url}/all_users`,
   primaryGroupsKey: "groups",
+  formRenderer: ReportEditor,
   secondaryLabel: "Reports",
   primaryIdKey: "user_id",
   primaryLabel: "Users",
