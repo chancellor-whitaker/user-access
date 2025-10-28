@@ -3,7 +3,7 @@ import { useId } from "react";
 export default function FormCheck({
   type = "checkbox",
   inline = true,
-  label = 1,
+  children,
   ...rest
 }) {
   const id = useId();
@@ -13,13 +13,11 @@ export default function FormCheck({
     .join(" ");
 
   return (
-    <>
-      <div className={className}>
-        <input className="form-check-input" type={type} id={id} {...rest} />
-        <label className="form-check-label" htmlFor={id}>
-          {label}
-        </label>
-      </div>
-    </>
+    <div className={className}>
+      <input className="form-check-input" type={type} id={id} {...rest} />
+      <label className="form-check-label" htmlFor={id}>
+        {children}
+      </label>
+    </div>
   );
 }
