@@ -163,6 +163,10 @@ const makeArray = (param) => [param].filter((el) => el).flat();
 // send back report with id in it's updated form
 
 export default function App() {
+  return <></>;
+}
+
+export const App1 = () => {
   const datasets = usePromise(entireDataPromise);
 
   const allData = useMemo(() => {
@@ -210,9 +214,9 @@ export default function App() {
           id,
           {
             groups: new Set(
-              makeArray(original.groups).map(
-                ({ acl_report_id }) => acl_report_id
-              )
+              makeArray(original.groups)
+                .filter(({ acl_active }) => acl_active === "Y")
+                .map(({ acl_report_id }) => acl_report_id)
             ),
             original,
             id,
@@ -366,4 +370,4 @@ export default function App() {
       <Component></Component>
     </>
   );
-}
+};

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { StrictMode } from "react";
 
+import AdminProvider from "./AdminContext/AdminProvider.jsx";
 import { RemoteComponent } from "./RemoteComponent.jsx";
 import App from "./App.jsx";
 
@@ -16,7 +17,9 @@ createRoot(document.getElementById("root")).render(
       url="https://irserver2.eku.edu/libraries/remote/wrapper.cjs"
       heading="User Access"
     >
-      <App />
+      <AdminProvider>
+        <App />
+      </AdminProvider>
     </RemoteComponent>
   </StrictMode>
 );
