@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 
 import ReportEditor from "./components/ReportEditor";
 import GridsPage from "./components/GridsPage";
+import useAdmin from "./AdminContext/useAdmin";
 import usePromise from "./hooks/usePromise";
 
 const url = "https://irserver2.eku.edu/Apps/DataPage/PROD/auth";
@@ -163,7 +164,15 @@ const makeArray = (param) => [param].filter((el) => el).flat();
 // send back report with id in it's updated form
 
 export default function App() {
-  return <></>;
+  const { btnGroup, dataGrid, modal } = useAdmin();
+
+  return (
+    <>
+      {btnGroup}
+      {dataGrid}
+      {modal}
+    </>
+  );
 }
 
 export const App1 = () => {

@@ -1,6 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useId } from "react";
+import { AgGridReact } from "ag-grid-react";
 
 import AdminContext from "./AdminContext";
+import Modal from "../components/Modal";
 
 // * report form to make modifications to 1 report
 // ? modify 1 report & its text values & assigned groups
@@ -266,7 +268,7 @@ const AdminProvider = ({ children }) => {
     [origTables, modifiedRecords]
   );
 
-  console.log(tables);
+  //   console.log(tables);
 
   const groupsTable = useMemo(() => inferGroupsTable(tables), [tables]);
 
@@ -338,7 +340,227 @@ const AdminProvider = ({ children }) => {
     }
   };
 
-  return <AdminContext.Provider value={[]}>{children}</AdminContext.Provider>;
+  const sortedLists = {
+    ...Object.fromEntries(
+      Object.entries(tables).map(([id, records]) => [
+        id,
+        Object.keys(records).sort(),
+      ])
+    ),
+    groups: Object.keys(groupsTable).sort(),
+  };
+
+  const switchTable = (id) => {
+    setTableId(id);
+
+    setRecordId(null);
+  };
+
+  const onRowClicked = ({ data: { id } }) =>
+    setRecordId((rId) => (id === rId ? null : id));
+
+  const btnGroup = (
+    <div>
+      <div className="btn-group" role="group">
+        {Object.keys(sortedLists).map((str) => (
+          <button
+            className={["btn btn-primary", tableId === str && "active"]
+              .filter((el) => el)
+              .join(" ")}
+            onClick={() => switchTable(str)}
+            type="button"
+            key={str}
+          >
+            {str[0].toLocaleUpperCase() + str.substring(1).toLocaleLowerCase()}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const dataGrid = (
+    <div style={{ height: 500 }}>
+      <AgGridReact
+        rowData={
+          tableId in sortedLists
+            ? sortedLists[tableId].map((id) => ({ id }))
+            : null
+        }
+        columnDefs={[{ field: "id" }]}
+        onRowClicked={onRowClicked}
+      />
+    </div>
+  );
+
+  const [modalActive, setModalActive] = useState();
+
+  if (recordId && !modalActive) setModalActive(true);
+
+  const closeModal = () => {
+    setModalActive(false);
+    setRecordId(null);
+  };
+
+  const showChecklist = (name) => {
+    if (tableId === "users" && name === "groups") {
+      return true;
+    }
+
+    if (tableId === "reports" && name === "report_groups") {
+      return true;
+    }
+
+    if (tableId === "groups" && name === "users") {
+      return true;
+    }
+
+    if (tableId === "groups" && name === "reports") {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isChecked = ({ value, name }) => {
+    if (tableId === "users") {
+      const set = new Set(
+        toTruthyArray(tempRecord[name])
+          .filter(({ acl_active }) => acl_active === "Y")
+          .map(({ acl_report_id }) => acl_report_id)
+      );
+
+      return set.has(value);
+    }
+
+    if (tableId === "reports") {
+      const set = new Set(
+        typeof tempRecord[name] === "string" ? tempRecord[name].split(",") : []
+      );
+
+      return set.has(value);
+    }
+
+    if (tableId === "groups") {
+      const set = tempRecord[name];
+
+      return set.has(value);
+    }
+  };
+
+  const getList = (name) => {
+    if (tableId === "users") {
+      return sortedLists.groups;
+    }
+
+    if (tableId === "reports") {
+      return sortedLists.groups;
+    }
+
+    if (tableId === "groups") {
+      return sortedLists[name];
+    }
+  };
+
+  const modal = (
+    <Modal
+      body={
+        <>
+          {record ? (
+            <>
+              {Object.entries(record).map(([name, value]) =>
+                showChecklist(name) ? (
+                  <FormInput label={name} key={name}>
+                    <div className="overflow-y-scroll" style={{ height: 150 }}>
+                      {getList(name).map((group) => (
+                        <FormCheck
+                          checked={
+                            tempRecord && isChecked({ value: group, name })
+                          }
+                          value={group}
+                          label={group}
+                          name={name}
+                        ></FormCheck>
+                      ))}
+                    </div>
+                  </FormInput>
+                ) : (
+                  <FormInput
+                    value={value}
+                    label={name}
+                    name={name}
+                    key={name}
+                  ></FormInput>
+                )
+              )}
+            </>
+          ) : null}
+        </>
+      }
+      title={`${tableId}: ${recordId}`}
+      active={modalActive}
+      close={closeModal}
+    ></Modal>
+  );
+
+  // console.log(sortedLists);
+
+  return (
+    <AdminContext.Provider value={{ btnGroup, dataGrid, modal }}>
+      {children}
+    </AdminContext.Provider>
+  );
+};
+
+const FormInput = ({
+  placeholder = "Text",
+  label = "Label",
+  className = "",
+  type = "text",
+  ...rest
+}) => {
+  const id = useId();
+
+  return (
+    <div className="mb-3">
+      <label className="form-label" htmlFor={id}>
+        {label}
+      </label>
+      {"children" in rest ? (
+        rest.children
+      ) : (
+        <input
+          className={["form-control", className].filter((el) => el).join(" ")}
+          placeholder={placeholder}
+          type={type}
+          id={id}
+          {...rest}
+        />
+      )}
+    </div>
+  );
+};
+
+const FormCheck = ({
+  type = "checkbox",
+  label = "Label",
+  className = "",
+  ...rest
+}) => {
+  const id = useId();
+
+  return (
+    <div className="form-check">
+      <input
+        className={["form-check-input", className].filter((el) => el).join(" ")}
+        type={type}
+        id={id}
+        {...rest}
+      />
+      <label className="form-check-label" htmlFor={id}>
+        {label}
+      </label>
+    </div>
+  );
 };
 
 export default AdminProvider;
