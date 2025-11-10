@@ -238,6 +238,10 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
   return [...checkedIdEvents, ...uncheckedIdEvents];
 };
 
+// checklists modifiable
+// checklists not savable
+// checklist doesn't show if checklist field not found in record
+
 const AdminProvider = ({ children }) => {
   const [modifiedRecords, setModifiedRecords] = useState({
     reports: {},
@@ -294,14 +298,22 @@ const AdminProvider = ({ children }) => {
 
   if (record === null && tempRecord !== null) setTempRecord(null);
 
-  const handleGroupChecked = (e) => {
-    setTempRecord((state) => updateTableRecGroup(e, state));
-  };
-
   const updateTempRecord = (e) =>
     setTempRecord((state) => updateRecordProperty(e, state));
 
-  const updateGroup = (e) => setTempRecord((state) => updateGroupSet(e, state));
+  const handleCheck = (e) => {
+    if (tableId === "users") {
+      setTempRecord((state) => updateUserGroup(e, state));
+    }
+
+    if (tableId === "reports") {
+      setTempRecord((state) => updateReportGroup(e, state));
+    }
+
+    if (tableId === "groups") {
+      setTempRecord((state) => updateGroupSet(e, state));
+    }
+  };
 
   const save = () => {
     if (tableId in tables) {
@@ -465,9 +477,9 @@ const AdminProvider = ({ children }) => {
     <Modal
       body={
         <>
-          {record ? (
+          {tempRecord ? (
             <>
-              {Object.entries(record).map(([name, value]) =>
+              {Object.entries(tempRecord).map(([name, value]) =>
                 showChecklist(name) ? (
                   <FormInput label={name} key={name}>
                     <div className="overflow-y-scroll" style={{ height: 150 }}>
@@ -476,6 +488,7 @@ const AdminProvider = ({ children }) => {
                           checked={
                             tempRecord && isChecked({ value: group, name })
                           }
+                          onChange={handleCheck}
                           value={group}
                           label={group}
                           name={name}
@@ -485,6 +498,7 @@ const AdminProvider = ({ children }) => {
                   </FormInput>
                 ) : (
                   <FormInput
+                    onChange={updateTempRecord}
                     value={value}
                     label={name}
                     name={name}
