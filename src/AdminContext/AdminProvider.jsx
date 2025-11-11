@@ -238,9 +238,12 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
   return [...checkedIdEvents, ...uncheckedIdEvents];
 };
 
-// checklists modifiable
-// checklists not savable
+// groups modal save error
 // checklist doesn't show if checklist field not found in record
+// search checklists
+// * float active items in checklists to top
+// might want multiple fields in checklists like report title
+// may still want option to click item in group modal to launch edit modal of item
 
 const AdminProvider = ({ children }) => {
   const [modifiedRecords, setModifiedRecords] = useState({
@@ -434,6 +437,8 @@ const AdminProvider = ({ children }) => {
   };
 
   const isChecked = ({ value, name }) => {
+    if (!tempRecord) return false;
+
     if (tableId === "users") {
       const set = new Set(
         toTruthyArray(tempRecord[name])
@@ -459,6 +464,34 @@ const AdminProvider = ({ children }) => {
     }
   };
 
+  const wasChecked = ({ value, name }) => {
+    if (!record) return false;
+
+    if (tableId === "users") {
+      const set = new Set(
+        toTruthyArray(record[name])
+          .filter(({ acl_active }) => acl_active === "Y")
+          .map(({ acl_report_id }) => acl_report_id)
+      );
+
+      return set.has(value);
+    }
+
+    if (tableId === "reports") {
+      const set = new Set(
+        typeof record[name] === "string" ? record[name].split(",") : []
+      );
+
+      return set.has(value);
+    }
+
+    if (tableId === "groups") {
+      const set = record[name];
+
+      return set.has(value);
+    }
+  };
+
   const getList = (name) => {
     if (tableId === "users") {
       return sortedLists.groups;
@@ -473,46 +506,65 @@ const AdminProvider = ({ children }) => {
     }
   };
 
+  const boolToBin = (a) => (a ? 1 : 0);
+
+  const sortByWasChecked = (name) => (a, b) =>
+    boolToBin(wasChecked({ value: b, name })) -
+    boolToBin(wasChecked({ value: a, name }));
+
+  const modalBody = (
+    <>
+      {tempRecord ? (
+        <>
+          {Object.entries(tempRecord).map(([name, value]) =>
+            showChecklist(name) ? (
+              <FormChecklist
+                onChange={handleCheck}
+                isChecked={isChecked}
+                name={name}
+              >
+                {[...getList(name)].sort(sortByWasChecked(name))}
+              </FormChecklist>
+            ) : (
+              <FormInput
+                onChange={updateTempRecord}
+                value={value}
+                label={name}
+                name={name}
+                key={name}
+              ></FormInput>
+            )
+          )}
+        </>
+      ) : null}
+    </>
+  );
+
+  const modalFooter = (
+    <>
+      <button className="btn btn-secondary" onClick={closeModal} type="button">
+        Close
+      </button>
+      <button
+        onClick={() => {
+          save();
+          closeModal();
+        }}
+        className="btn btn-primary"
+        type="button"
+      >
+        Save changes
+      </button>
+    </>
+  );
+
   const modal = (
     <Modal
-      body={
-        <>
-          {tempRecord ? (
-            <>
-              {Object.entries(tempRecord).map(([name, value]) =>
-                showChecklist(name) ? (
-                  <FormInput label={name} key={name}>
-                    <div className="overflow-y-scroll" style={{ height: 150 }}>
-                      {getList(name).map((group) => (
-                        <FormCheck
-                          checked={
-                            tempRecord && isChecked({ value: group, name })
-                          }
-                          onChange={handleCheck}
-                          value={group}
-                          label={group}
-                          name={name}
-                        ></FormCheck>
-                      ))}
-                    </div>
-                  </FormInput>
-                ) : (
-                  <FormInput
-                    onChange={updateTempRecord}
-                    value={value}
-                    label={name}
-                    name={name}
-                    key={name}
-                  ></FormInput>
-                )
-              )}
-            </>
-          ) : null}
-        </>
-      }
       title={`${tableId}: ${recordId}`}
+      footer={modalFooter}
       active={modalActive}
       close={closeModal}
+      body={modalBody}
     ></Modal>
   );
 
@@ -574,6 +626,26 @@ const FormCheck = ({
         {label}
       </label>
     </div>
+  );
+};
+
+const FormChecklist = ({ isChecked, onChange, children, name }) => {
+  // const [searchValue, setSearchValue] = useState("");
+
+  return (
+    <FormInput label={name} key={name}>
+      <div className="overflow-y-scroll" style={{ height: 150 }}>
+        {children.map((value) => (
+          <FormCheck
+            checked={isChecked({ value, name })}
+            onChange={onChange}
+            value={value}
+            label={value}
+            name={name}
+          ></FormCheck>
+        ))}
+      </div>
+    </FormInput>
   );
 };
 
