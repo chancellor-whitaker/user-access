@@ -1,59 +1,9 @@
-import { useEffect, useState, useMemo, useId } from "react";
+import { useCallback, useEffect, useState, useMemo, useId } from "react";
 import { AgGridReact } from "ag-grid-react";
+import useVirtual from "react-cool-virtual";
 
 import AdminContext from "./AdminContext";
 import Modal from "../components/Modal";
-
-// * report form to make modifications to 1 report
-// ? modify 1 report & its text values & assigned groups
-// ! an api to update a report
-// ! since being sent back in original format, must be able to maintain pre-modified record & version in form
-
-// * user form to make modifications to 1 user
-// ? modify 1 user & its text values & assigned groups
-// ! an api to update a user
-// ! since being sent back in original format, must be able to maintain pre-modified record & version in form
-
-// * group form to make modifications to N users & N reports
-// ? modify N users & N reports assigned to 1 group
-// ! call api N times to update users & reports
-
-// ! call api N times once hit save
-/*
-current
-[
-{
-group
-}
-]
-
-changes
-[ 
-
-{
- group: groupId, 
- value: recordId,
- checked: true/false
- name: "users"/"reports", 
-}
-
-...,
-
- {},
-
-]
-*/
-
-// group form
-// group
-// list of users
-// ...
-// list
-// userA
-// userB
-// ...
-// list of reports
-// ...
 
 const url = "https://irserver2.eku.edu/Apps/DataPage/PROD/auth";
 
@@ -239,10 +189,10 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
 };
 
 // groups modal save error
-// checklist doesn't show if checklist field not found in record
 // search checklists
+// * checklist doesn't show if checklist field not found in record
 // * float active items in checklists to top
-// might want multiple fields in checklists like report title
+// * might want multiple fields in checklists like report title
 // may still want option to click item in group modal to launch edit modal of item
 
 const AdminProvider = ({ children }) => {
@@ -275,7 +225,33 @@ const AdminProvider = ({ children }) => {
     [origTables, modifiedRecords]
   );
 
-  //   console.log(tables);
+  const labelLookup = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(tables).map(([tId, tableByIds]) => {
+        return [
+          tId,
+          Object.fromEntries(
+            Object.entries(tableByIds).map(([id, row]) => {
+              return tId === "reports"
+                ? [id, `${id} (${row.report_title})`]
+                : [id, id];
+            })
+          ),
+        ];
+      })
+    );
+  }, [tables]);
+
+  const getLabel = useCallback(
+    ({ value, name }) => {
+      if (name in labelLookup && value in labelLookup[name]) {
+        return labelLookup[name][value];
+      }
+
+      return value;
+    },
+    [labelLookup]
+  );
 
   const groupsTable = useMemo(() => inferGroupsTable(tables), [tables]);
 
@@ -297,7 +273,15 @@ const AdminProvider = ({ children }) => {
 
   const [tempRecord, setTempRecord] = useState(null);
 
-  if (record !== null && tempRecord === null) setTempRecord(record);
+  if (record !== null && tempRecord === null) {
+    if (tableId === "users" && !("groups" in record)) {
+      setTempRecord({ groups: [], ...record });
+    } else if (tableId === "reports" && !("report_groups" in record)) {
+      setTempRecord({ report_groups: [], ...record });
+    } else {
+      setTempRecord(record);
+    }
+  }
 
   if (record === null && tempRecord !== null) setTempRecord(null);
 
@@ -519,6 +503,7 @@ const AdminProvider = ({ children }) => {
           {Object.entries(tempRecord).map(([name, value]) =>
             showChecklist(name) ? (
               <FormChecklist
+                labelGetter={getLabel}
                 onChange={handleCheck}
                 isChecked={isChecked}
                 name={name}
@@ -568,8 +553,6 @@ const AdminProvider = ({ children }) => {
     ></Modal>
   );
 
-  // console.log(sortedLists);
-
   return (
     <AdminContext.Provider value={{ btnGroup, dataGrid, modal }}>
       {children}
@@ -578,7 +561,6 @@ const AdminProvider = ({ children }) => {
 };
 
 const FormInput = ({
-  placeholder = "Text",
   label = "Label",
   className = "",
   type = "text",
@@ -596,7 +578,6 @@ const FormInput = ({
       ) : (
         <input
           className={["form-control", className].filter((el) => el).join(" ")}
-          placeholder={placeholder}
           type={type}
           id={id}
           {...rest}
@@ -629,23 +610,60 @@ const FormCheck = ({
   );
 };
 
-const FormChecklist = ({ isChecked, onChange, children, name }) => {
-  // const [searchValue, setSearchValue] = useState("");
+const FormChecklist = ({
+  labelGetter,
+  isChecked,
+  onChange,
+  children,
+  name,
+}) => {
+  const [searchValue, setSearchValue] = useState("");
+
+  const onSearchChange = ({ target: { value } }) => setSearchValue(value);
 
   return (
     <FormInput label={name} key={name}>
-      <div className="overflow-y-scroll" style={{ height: 150 }}>
+      <input
+        className="form-control mb-2"
+        onChange={onSearchChange}
+        value={searchValue}
+        type="text"
+      />
+      <VirtualList className="overflow-y-scroll" style={{ height: 150 }}>
         {children.map((value) => (
           <FormCheck
+            label={
+              typeof labelGetter === "function"
+                ? labelGetter({ value, name })
+                : value
+            }
             checked={isChecked({ value, name })}
             onChange={onChange}
             value={value}
-            label={value}
             name={name}
           ></FormCheck>
         ))}
-      </div>
+      </VirtualList>
     </FormInput>
+  );
+};
+
+const VirtualList = ({ children = [], ...props }) => {
+  const itemCount = children.length;
+
+  const { outerRef, innerRef, items } = useVirtual({ itemCount });
+
+  const childrenItems = items.map(({ measureRef, index }) => (
+    // Use the `measureRef` to measure the item size
+    <div ref={measureRef} key={index}>
+      {children[index]}
+    </div>
+  ));
+
+  return (
+    <div ref={outerRef} {...props}>
+      <div ref={innerRef}>{childrenItems}</div>
+    </div>
   );
 };
 
