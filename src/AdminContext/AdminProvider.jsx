@@ -189,7 +189,7 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
 };
 
 // groups modal save error
-// search checklists
+// * search checklists
 // * checklist doesn't show if checklist field not found in record
 // * float active items in checklists to top
 // * might want multiple fields in checklists like report title
@@ -611,15 +611,19 @@ const FormCheck = ({
 };
 
 const FormChecklist = ({
+  children = [],
   labelGetter,
   isChecked,
   onChange,
-  children,
   name,
 }) => {
   const [searchValue, setSearchValue] = useState("");
 
   const onSearchChange = ({ target: { value } }) => setSearchValue(value);
+
+  const filteredChildren = children.filter((str) =>
+    str.toLowerCase().includes(searchValue.toLowerCase().trim())
+  );
 
   return (
     <FormInput label={name} key={name}>
@@ -630,7 +634,7 @@ const FormChecklist = ({
         type="text"
       />
       <VirtualList className="overflow-y-scroll" style={{ height: 150 }}>
-        {children.map((value) => (
+        {filteredChildren.map((value) => (
           <FormCheck
             label={
               typeof labelGetter === "function"
@@ -641,6 +645,7 @@ const FormChecklist = ({
             onChange={onChange}
             value={value}
             name={name}
+            key={value}
           ></FormCheck>
         ))}
       </VirtualList>
