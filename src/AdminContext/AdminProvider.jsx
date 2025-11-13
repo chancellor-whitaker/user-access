@@ -621,8 +621,11 @@ const FormChecklist = ({
 
   const onSearchChange = ({ target: { value } }) => setSearchValue(value);
 
-  const filteredChildren = children.filter((str) =>
-    str.toLowerCase().includes(searchValue.toLowerCase().trim())
+  const getLabel = (value) =>
+    typeof labelGetter === "function" ? labelGetter({ value, name }) : value;
+
+  const filteredChildren = children.filter((value) =>
+    getLabel(value).toLowerCase().includes(searchValue.toLowerCase().trim())
   );
 
   return (
@@ -636,12 +639,8 @@ const FormChecklist = ({
       <VirtualList className="overflow-y-scroll" style={{ height: 150 }}>
         {filteredChildren.map((value) => (
           <FormCheck
-            label={
-              typeof labelGetter === "function"
-                ? labelGetter({ value, name })
-                : value
-            }
             checked={isChecked({ value, name })}
+            label={getLabel(value)}
             onChange={onChange}
             value={value}
             name={name}
