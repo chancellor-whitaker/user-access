@@ -157,12 +157,12 @@ const findNewSetElements = (oldSet, newSet) =>
   [...newSet].filter((el) => !oldSet.has(el));
 
 const updateTableRecGroup = (e, state) => {
-  if (e.name === "users") {
-    updateUserGroup(e, state);
+  if (e.target.name === "users") {
+    return updateUserGroup(e, state);
   }
 
-  if (e.name === "reports") {
-    updateReportGroup(e, state);
+  if (e.target.name === "reports") {
+    return updateReportGroup(e, state);
   }
 };
 
@@ -188,14 +188,32 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
   return [...checkedIdEvents, ...uncheckedIdEvents];
 };
 
-// groups modal save error
+// * groups modal save error
+// * search on grids
 // * search checklists
 // * checklist doesn't show if checklist field not found in record
 // * float active items in checklists to top
 // * might want multiple fields in checklists like report title
-// may still want option to click item in group modal to launch edit modal of item
+// ? more fields in grid
+// ? may still want option to click item in group modal to launch edit modal of item
 
 const AdminProvider = ({ children }) => {
+  const [quickFilterText, setQuickFilterText] = useState("");
+
+  const onQuickFilterChange = ({ target: { value } }) =>
+    setQuickFilterText(value);
+
+  const quickFilter = (
+    <input
+      className="form-control shadow-sm"
+      onChange={onQuickFilterChange}
+      style={{ maxWidth: 200 }}
+      placeholder="Filter..."
+      value={quickFilterText}
+      type="text"
+    />
+  );
+
   const [modifiedRecords, setModifiedRecords] = useState({
     reports: {},
     users: {},
@@ -324,8 +342,13 @@ const AdminProvider = ({ children }) => {
           group: recordId,
         });
 
+        console.log(changes);
+
         changes.forEach(({ id, ...e }) => {
-          newState[e.name][id] = updateTableRecGroup(e, tables[e.name][id]);
+          newState[e.target.name][id] = updateTableRecGroup(
+            e,
+            tables[e.target.name][id]
+          );
         });
 
         return newState;
@@ -360,7 +383,7 @@ const AdminProvider = ({ children }) => {
 
   const btnGroup = (
     <div>
-      <div className="btn-group" role="group">
+      <div className="btn-group shadow-sm" role="group">
         {Object.keys(sortedLists).map((str) => (
           <button
             className={["btn btn-primary", tableId === str && "active"]
@@ -385,6 +408,7 @@ const AdminProvider = ({ children }) => {
             ? sortedLists[tableId].map((id) => ({ id }))
             : null
         }
+        quickFilterText={quickFilterText}
         columnDefs={[{ field: "id" }]}
         onRowClicked={onRowClicked}
       />
@@ -554,7 +578,7 @@ const AdminProvider = ({ children }) => {
   );
 
   return (
-    <AdminContext.Provider value={{ btnGroup, dataGrid, modal }}>
+    <AdminContext.Provider value={{ quickFilter, btnGroup, dataGrid, modal }}>
       {children}
     </AdminContext.Provider>
   );

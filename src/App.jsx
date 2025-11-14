@@ -164,11 +164,14 @@ const makeArray = (param) => [param].filter((el) => el).flat();
 // send back report with id in it's updated form
 
 export default function App() {
-  const { btnGroup, dataGrid, modal } = useAdmin();
+  const { quickFilter, btnGroup, dataGrid, modal } = useAdmin();
 
   return (
     <>
-      {btnGroup}
+      <div className="d-flex gap-3 flex-wrap">
+        {btnGroup}
+        {quickFilter}
+      </div>
       {dataGrid}
       {modal}
     </>
