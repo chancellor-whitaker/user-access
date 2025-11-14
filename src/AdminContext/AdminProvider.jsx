@@ -188,6 +188,32 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
   return [...checkedIdEvents, ...uncheckedIdEvents];
 };
 
+const getUserUrl = (id) =>
+  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_users/${id}`;
+
+const handlePost = async (url, body) => {
+  try {
+    const response = await fetch(url, {
+      // Replace with your API endpoint
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Post created:", data);
+    // You can update state or redirect here based on the response
+  } catch (error) {
+    console.error("Error creating post:", error);
+  }
+};
+
 // * groups modal save error
 // * search on grids
 // * search checklists
@@ -197,7 +223,15 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
 // ? more fields in grid
 // ? may still want option to click item in group modal to launch edit modal of item
 
+const allGroupsPromise = fetch(
+  "https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_report_groups_api"
+).then((res) => res.json());
+
 const AdminProvider = ({ children }) => {
+  const allGroups = usePromise(allGroupsPromise);
+
+  const allGroupsSet = new Set([allGroups].filter((el) => el).flat());
+
   const [quickFilterText, setQuickFilterText] = useState("");
 
   const onQuickFilterChange = ({ target: { value } }) =>
@@ -325,6 +359,26 @@ const AdminProvider = ({ children }) => {
       setModifiedRecords((records) =>
         storeModification({ record: tempRecord, recordId, records, tableId })
       );
+
+      if (tableId === "users") {
+        const params = [
+          getUserUrl(recordId),
+          {
+            [recordId]: {
+              ...tempRecord,
+              groups: tempRecord.groups.filter(({ acl_report_id }) =>
+                allGroupsSet.has(acl_report_id)
+              ),
+            },
+          },
+        ];
+
+        console.log(JSON.stringify(params[1]));
+
+        console.log(...params);
+
+        handlePost(...params);
+      }
     }
 
     if (tableId === "groups") {
@@ -531,6 +585,7 @@ const AdminProvider = ({ children }) => {
                 onChange={handleCheck}
                 isChecked={isChecked}
                 name={name}
+                key={name}
               >
                 {[...getList(name)].sort(sortByWasChecked(name))}
               </FormChecklist>
