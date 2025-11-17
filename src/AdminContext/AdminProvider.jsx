@@ -239,7 +239,7 @@ const getAllGroupsPromise = () =>
   ).then((res) => res.json());
 
 const AdminProvider = ({ children }) => {
-  const [allGroups] = usePromise(getAllGroupsPromise);
+  const [allGroups, fetchAllGroups] = usePromise(getAllGroupsPromise);
 
   const allGroupsSet = new Set([allGroups].filter((el) => el).flat());
 
@@ -374,10 +374,52 @@ const AdminProvider = ({ children }) => {
       method: "POST",
     });
 
+  const getBody = (tId, rId, row) => {
+    if (tId === "users") {
+      return {
+        [rId]: {
+          ...row,
+          groups: row.groups.filter(({ acl_report_id }) =>
+            allGroupsSet.has(acl_report_id)
+          ),
+        },
+      };
+    }
+
+    if (tId === "reports") {
+      return {
+        [rId]: {
+          ...row,
+          // report_groups: row.groups.filter(({ acl_report_id }) =>
+          //   allGroupsSet.has(acl_report_id)
+          // ),
+        },
+      };
+    }
+  };
+
+  const getUrl = (tId, rId) =>
+    tId === "users"
+      ? getUserUrl(rId)
+      : tId === "reports"
+      ? getReportUrl(rId)
+      : "";
+
   const handleSubmit = async (posts) => {
-    await Promise.all(posts.map(postToPromise));
-    fetchDatasets();
-    //  fetchItems(); // Re-fetch items after successful POST
+    await Promise.all(posts.map(postToPromise))
+      .then((responses) => {
+        // All requests succeeded
+        console.log("All responses:", responses);
+        return Promise.all(responses.map((res) => res.json()));
+      })
+      .then((data) => {
+        console.log("All response data:", data);
+      })
+      .catch((error) => {
+        console.error("One or more requests failed:", error);
+      });
+    // fetchDatasets();
+    // fetchAllGroups();
   };
 
   const save = () => {
@@ -388,17 +430,14 @@ const AdminProvider = ({ children }) => {
 
       const posts = [
         {
-          url:
-            tableId === "users"
-              ? getUserUrl(recordId)
-              : tableId === "reports"
-              ? getReportUrl(recordId)
-              : "",
-          body: { [recordId]: tempRecord },
+          body: getBody(tableId, recordId, tempRecord),
+          url: getUrl(tableId, recordId),
         },
       ];
 
-      // handleSubmit(posts);
+      // console.log(posts);
+
+      handleSubmit(posts);
     }
 
     if (tableId === "groups") {
@@ -424,16 +463,15 @@ const AdminProvider = ({ children }) => {
         });
 
         const posts = changes.map(({ id, ...e }) => ({
-          url:
-            e.target.name === "users"
-              ? getUserUrl(id)
-              : e.target.name === "reports"
-              ? getReportUrl(id)
-              : "",
-          body: { [id]: updateTableRecGroup(e, tables[e.target.name][id]) },
+          body: getBody(
+            e.target.name,
+            id,
+            updateTableRecGroup(e, tables[e.target.name][id])
+          ),
+          url: getUrl(e.target.name, id),
         }));
 
-        // handleSubmit(posts);
+        handleSubmit(posts);
 
         return newState;
       });
