@@ -14,28 +14,31 @@ const promises = [
 
 const getJsonPromise = (url) => fetch(url).then((response) => response.json());
 
-const allDataPromise = Promise.all(
-  promises.map(({ url }) => getJsonPromise(url))
-);
+const promiseGetter = () =>
+  Promise.all(promises.map(({ url }) => getJsonPromise(url)));
 
 const toTruthyArray = (array) => [array].filter(Boolean).flat();
 
-const usePromise = (promise) => {
+const usePromise = (promiseFactory) => {
   const [state, setState] = useState(null);
 
+  const run = useCallback(() => {
+    const promise = promiseFactory?.();
+    if (!promise) return;
+
+    let ignore = false;
+    promise.then((response) => !ignore && setState(response));
+
+    return () => {
+      ignore = true;
+    };
+  }, [promiseFactory]);
+
   useEffect(() => {
-    if (promise) {
-      let ignore = false;
+    run();
+  }, [run]);
 
-      promise.then((response) => !ignore && setState(response));
-
-      return () => {
-        ignore = true;
-      };
-    }
-  }, [promise]);
-
-  return state;
+  return [state, run];
 };
 
 const createTables = (datasets) => {
@@ -191,6 +194,9 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
 const getUserUrl = (id) =>
   `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_users/${id}`;
 
+const getReportUrl = (id) =>
+  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/reports_list_api/${id}`;
+
 const handlePost = async (url, body) => {
   try {
     const response = await fetch(url, {
@@ -223,13 +229,17 @@ const handlePost = async (url, body) => {
 // * disable non-fetched groups
 // ? more fields in grid
 // ? may still want option to click item in group modal to launch edit modal of item
+// ! add mechanism for sending new report back
+// ! add mechanism for sending many reports & groups back
+// ! add mechanism for refetching data after pushing changes
 
-const allGroupsPromise = fetch(
-  "https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_report_groups_api"
-).then((res) => res.json());
+const getAllGroupsPromise = () =>
+  fetch(
+    "https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_report_groups_api"
+  ).then((res) => res.json());
 
 const AdminProvider = ({ children }) => {
-  const allGroups = usePromise(allGroupsPromise);
+  const [allGroups] = usePromise(getAllGroupsPromise);
 
   const allGroupsSet = new Set([allGroups].filter((el) => el).flat());
 
@@ -254,7 +264,7 @@ const AdminProvider = ({ children }) => {
     users: {},
   });
 
-  const datasets = usePromise(allDataPromise);
+  const [datasets, fetchDatasets] = usePromise(promiseGetter);
 
   const origTables = useMemo(() => createTables(datasets), [datasets]);
 
@@ -355,26 +365,40 @@ const AdminProvider = ({ children }) => {
     }
   };
 
+  const postToPromise = ({ body, url }) =>
+    fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      method: "POST",
+    });
+
+  const handleSubmit = async (posts) => {
+    await Promise.all(posts.map(postToPromise));
+    fetchDatasets();
+    //  fetchItems(); // Re-fetch items after successful POST
+  };
+
   const save = () => {
     if (tableId in tables) {
       setModifiedRecords((records) =>
         storeModification({ record: tempRecord, recordId, records, tableId })
       );
 
-      if (tableId === "users") {
-        // const params = [
-        //   getUserUrl(recordId),
-        //   {
-        //     [recordId]: {
-        //       ...tempRecord,
-        //       groups: tempRecord.groups.filter(({ acl_report_id }) =>
-        //         allGroupsSet.has(acl_report_id)
-        //       ),
-        //     },
-        //   },
-        // ];
-        // handlePost(...params);
-      }
+      const posts = [
+        {
+          url:
+            tableId === "users"
+              ? getUserUrl(recordId)
+              : tableId === "reports"
+              ? getReportUrl(recordId)
+              : "",
+          body: { [recordId]: tempRecord },
+        },
+      ];
+
+      // handleSubmit(posts);
     }
 
     if (tableId === "groups") {
@@ -392,14 +416,24 @@ const AdminProvider = ({ children }) => {
           group: recordId,
         });
 
-        console.log(changes);
-
         changes.forEach(({ id, ...e }) => {
           newState[e.target.name][id] = updateTableRecGroup(
             e,
             tables[e.target.name][id]
           );
         });
+
+        const posts = changes.map(({ id, ...e }) => ({
+          url:
+            e.target.name === "users"
+              ? getUserUrl(id)
+              : e.target.name === "reports"
+              ? getReportUrl(id)
+              : "",
+          body: { [id]: updateTableRecGroup(e, tables[e.target.name][id]) },
+        }));
+
+        // handleSubmit(posts);
 
         return newState;
       });
