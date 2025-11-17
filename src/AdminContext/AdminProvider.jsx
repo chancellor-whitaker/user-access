@@ -220,6 +220,7 @@ const handlePost = async (url, body) => {
 // * checklist doesn't show if checklist field not found in record
 // * float active items in checklists to top
 // * might want multiple fields in checklists like report title
+// * disable non-fetched groups
 // ? more fields in grid
 // ? may still want option to click item in group modal to launch edit modal of item
 
@@ -361,23 +362,18 @@ const AdminProvider = ({ children }) => {
       );
 
       if (tableId === "users") {
-        const params = [
-          getUserUrl(recordId),
-          {
-            [recordId]: {
-              ...tempRecord,
-              groups: tempRecord.groups.filter(({ acl_report_id }) =>
-                allGroupsSet.has(acl_report_id)
-              ),
-            },
-          },
-        ];
-
-        console.log(JSON.stringify(params[1]));
-
-        console.log(...params);
-
-        handlePost(...params);
+        // const params = [
+        //   getUserUrl(recordId),
+        //   {
+        //     [recordId]: {
+        //       ...tempRecord,
+        //       groups: tempRecord.groups.filter(({ acl_report_id }) =>
+        //         allGroupsSet.has(acl_report_id)
+        //       ),
+        //     },
+        //   },
+        // ];
+        // handlePost(...params);
       }
     }
 
@@ -498,6 +494,18 @@ const AdminProvider = ({ children }) => {
     return false;
   };
 
+  const isDisabled = ({ value, name }) => {
+    if (tableId === "users" && name === "groups") {
+      return !allGroupsSet.has(value);
+    }
+
+    if (tableId === "reports" && name === "report_groups") {
+      return !allGroupsSet.has(value);
+    }
+
+    return false;
+  };
+
   const isChecked = ({ value, name }) => {
     if (!tempRecord) return false;
 
@@ -581,6 +589,7 @@ const AdminProvider = ({ children }) => {
           {Object.entries(tempRecord).map(([name, value]) =>
             showChecklist(name) ? (
               <FormChecklist
+                isDisabled={isDisabled}
                 labelGetter={getLabel}
                 onChange={handleCheck}
                 isChecked={isChecked}
@@ -692,6 +701,7 @@ const FormCheck = ({
 const FormChecklist = ({
   children = [],
   labelGetter,
+  isDisabled,
   isChecked,
   onChange,
   name,
@@ -718,6 +728,7 @@ const FormChecklist = ({
       <VirtualList className="overflow-y-scroll" style={{ height: 150 }}>
         {filteredChildren.map((value) => (
           <FormCheck
+            disabled={isDisabled({ value, name })}
             checked={isChecked({ value, name })}
             label={getLabel(value)}
             onChange={onChange}
