@@ -195,30 +195,7 @@ const getUserUrl = (id) =>
   `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_users/${id}`;
 
 const getReportUrl = (id) =>
-  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/reports_list_api/${id}`;
-
-const handlePost = async (url, body) => {
-  try {
-    const response = await fetch(url, {
-      // Replace with your API endpoint
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("Post created:", data);
-    // You can update state or redirect here based on the response
-  } catch (error) {
-    console.error("Error creating post:", error);
-  }
-};
+  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/reports_list_api${id}`;
 
 // * groups modal save error
 // * search on grids
@@ -229,9 +206,11 @@ const handlePost = async (url, body) => {
 // * disable non-fetched groups
 // ? more fields in grid
 // ? may still want option to click item in group modal to launch edit modal of item
-// ! add mechanism for sending new report back
-// ! add mechanism for sending many reports & groups back
-// ! add mechanism for refetching data after pushing changes
+// * add mechanism for sending new report back
+// * add mechanism for sending many reports & groups back
+// * add mechanism for refetching data after pushing changes
+
+// ! handle newline characters in text boxes like report notes
 
 const getAllGroupsPromise = () =>
   fetch(
@@ -388,12 +367,14 @@ const AdminProvider = ({ children }) => {
 
     if (tId === "reports") {
       return {
-        [rId]: {
-          ...row,
-          // report_groups: row.groups.filter(({ acl_report_id }) =>
-          //   allGroupsSet.has(acl_report_id)
-          // ),
-        },
+        ...row,
+        report_groups:
+          row.report_groups && typeof row.report_groups === "string"
+            ? row.report_groups
+                .split(",")
+                .filter((el) => allGroupsSet.has(el))
+                .join(",")
+            : row.report_groups,
       };
     }
   };
@@ -402,7 +383,7 @@ const AdminProvider = ({ children }) => {
     tId === "users"
       ? getUserUrl(rId)
       : tId === "reports"
-      ? getReportUrl(rId)
+      ? getReportUrl("")
       : "";
 
   const handleSubmit = async (posts) => {
@@ -418,16 +399,14 @@ const AdminProvider = ({ children }) => {
       .catch((error) => {
         console.error("One or more requests failed:", error);
       });
-    // fetchDatasets();
-    // fetchAllGroups();
+
+    fetchDatasets();
+
+    fetchAllGroups();
   };
 
   const save = () => {
     if (tableId in tables) {
-      setModifiedRecords((records) =>
-        storeModification({ record: tempRecord, recordId, records, tableId })
-      );
-
       const posts = [
         {
           body: getBody(tableId, recordId, tempRecord),
@@ -435,52 +414,67 @@ const AdminProvider = ({ children }) => {
         },
       ];
 
-      // console.log(posts);
+      console.log(posts);
 
       handleSubmit(posts);
+
+      // setModifiedRecords((records) =>
+      //   storeModification({ record: tempRecord, recordId, records, tableId })
+      // );
     }
 
     if (tableId === "groups") {
-      setModifiedRecords((state) => {
-        const newState = Object.fromEntries(
-          Object.entries(state).map(([tId, recordsById]) => [
-            tId,
-            { ...recordsById },
-          ])
-        );
-
-        const changes = findEveryGroupChange({
-          newRecord: tempRecord,
-          oldRecord: record,
-          group: recordId,
-        });
-
-        changes.forEach(({ id, ...e }) => {
-          newState[e.target.name][id] = updateTableRecGroup(
-            e,
-            tables[e.target.name][id]
-          );
-        });
-
-        const posts = changes.map(({ id, ...e }) => ({
-          body: getBody(
-            e.target.name,
-            id,
-            updateTableRecGroup(e, tables[e.target.name][id])
-          ),
-          url: getUrl(e.target.name, id),
-        }));
-
-        handleSubmit(posts);
-
-        return newState;
+      const changes = findEveryGroupChange({
+        newRecord: tempRecord,
+        oldRecord: record,
+        group: recordId,
       });
-      // compare record to tempRecord to find the differences in the sets
-      // for both sets, find ids in tempRecord that DON'T appear in record
-      // these ids were checked
-      // for both sets, find ids in record that DON'T appear in tempRecord
-      // these ids were unchecked
-      // how do you utilize updateReportGroup & updateUserGroup to handle these changes?
+
+      const posts = changes.map(({ id, ...e }) => ({
+        body: getBody(
+          e.target.name,
+          id,
+          updateTableRecGroup(e, tables[e.target.name][id])
+        ),
+        url: getUrl(e.target.name, id),
+      }));
+
+      handleSubmit(posts);
+
+      // setModifiedRecords((state) => {
+      //   const newState = Object.fromEntries(
+      //     Object.entries(state).map(([tId, recordsById]) => [
+      //       tId,
+      //       { ...recordsById },
+      //     ])
+      //   );
+
+      //   const changes = findEveryGroupChange({
+      //     newRecord: tempRecord,
+      //     oldRecord: record,
+      //     group: recordId,
+      //   });
+
+      //   changes.forEach(({ id, ...e }) => {
+      //     newState[e.target.name][id] = updateTableRecGroup(
+      //       e,
+      //       tables[e.target.name][id]
+      //     );
+      //   });
+
+      //   const posts = changes.map(({ id, ...e }) => ({
+      //     body: getBody(
+      //       e.target.name,
+      //       id,
+      //       updateTableRecGroup(e, tables[e.target.name][id])
+      //     ),
+      //     url: getUrl(e.target.name, id),
+      //   }));
+
+      //   handleSubmit(posts);
+
+      //   return newState;
+      // });
     }
   };
 
@@ -672,8 +666,8 @@ const AdminProvider = ({ children }) => {
               </FormChecklist>
             ) : (
               <FormInput
+                value={typeof value === "string" ? value : ""}
                 onChange={updateTempRecord}
-                value={value}
                 label={name}
                 name={name}
                 key={name}
