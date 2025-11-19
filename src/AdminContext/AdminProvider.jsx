@@ -324,7 +324,28 @@ const AdminProvider = ({ children }) => {
       method: "POST",
     });
 
-  const getBody = (tId, rId, row) => {
+  const getBody = (tId, rId, row1) => {
+    // replace all /n with /r/n
+    // replace all /r/n with /n, and then replace all /n with /r/n?
+
+    const row = Object.fromEntries(
+      Object.entries(row1).map((entry) => {
+        const [key, value] = entry;
+
+        if (typeof value === "string") {
+          const value1 = value.replaceAll("\r\n", "\n");
+
+          const value2 = value1.replaceAll("\n", "\r\n");
+
+          return [key, value2];
+        }
+
+        return entry;
+      })
+    );
+
+    // console.log(JSON.stringify(row));
+
     if (tId === "users") {
       return {
         [rId]: {
@@ -419,6 +440,10 @@ const AdminProvider = ({ children }) => {
     ),
     groups: Object.keys(groupsTable).sort(),
   };
+
+  if (tableId === null && datasets !== null) {
+    setTableId(Object.keys(sortedLists)[0]);
+  }
 
   const switchTable = (id) => {
     setTableId(id);
