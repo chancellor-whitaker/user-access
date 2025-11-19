@@ -1,45 +1,26 @@
-import { useCallback, useEffect, useState, useMemo, useId } from "react";
+import { useCallback, useState, useMemo } from "react";
+import TextareaAutosize from "react-textarea-autosize";
 import { AgGridReact } from "ag-grid-react";
-import useVirtual from "react-cool-virtual";
 
+import { findNewSetElements, getJsonPromise, toTruthyArray } from "../utils";
+import AutoHeightTextarea from "../components/AutoHeightTextarea";
+import FormChecklist from "../components/FormChecklist";
+import FormInput from "../components/FormInput";
+import usePromise from "../hooks/usePromise";
+import { urlSegments } from "../constants";
 import AdminContext from "./AdminContext";
 import Modal from "../components/Modal";
 
-const url = "https://irserver2.eku.edu/Apps/DataPage/PROD/auth";
-
 const promises = [
-  { url: `${url}/all_users`, id: "users" },
-  { url: `${url}/reports_list_api`, id: "reports" },
+  { url: `${urlSegments.base}/${urlSegments.users}`, id: "users" },
+  { url: `${urlSegments.base}/${urlSegments.reports}`, id: "reports" },
 ];
 
-const getJsonPromise = (url) => fetch(url).then((response) => response.json());
-
-const promiseGetter = () =>
+const datasetsPromiseFactory = () =>
   Promise.all(promises.map(({ url }) => getJsonPromise(url)));
 
-const toTruthyArray = (array) => [array].filter(Boolean).flat();
-
-const usePromise = (promiseFactory) => {
-  const [state, setState] = useState(null);
-
-  const run = useCallback(() => {
-    const promise = promiseFactory?.();
-    if (!promise) return;
-
-    let ignore = false;
-    promise.then((response) => !ignore && setState(response));
-
-    return () => {
-      ignore = true;
-    };
-  }, [promiseFactory]);
-
-  useEffect(() => {
-    run();
-  }, [run]);
-
-  return [state, run];
-};
+const groupsPromiseFactory = () =>
+  fetch(`${urlSegments.base}/${urlSegments.groups}`).then((res) => res.json());
 
 const createTables = (datasets) => {
   if (Array.isArray(datasets)) {
@@ -146,19 +127,6 @@ const updateUserGroup = ({ target: { value: group, checked } }, state) => {
   return { ...state, groups };
 };
 
-const storeModification = ({ recordId, records, tableId, record }) => {
-  const updated = { ...records };
-
-  updated[tableId] = { ...updated[tableId] };
-
-  updated[tableId][recordId] = record;
-
-  return updated;
-};
-
-const findNewSetElements = (oldSet, newSet) =>
-  [...newSet].filter((el) => !oldSet.has(el));
-
 const updateTableRecGroup = (e, state) => {
   if (e.target.name === "users") {
     return updateUserGroup(e, state);
@@ -191,11 +159,9 @@ const findEveryGroupChange = ({ oldRecord, newRecord, group }) => {
   return [...checkedIdEvents, ...uncheckedIdEvents];
 };
 
-const getUserUrl = (id) =>
-  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_users/${id}`;
+const getUserUrl = (id) => `${urlSegments.base}/${urlSegments.users}/${id}`;
 
-const getReportUrl = (id) =>
-  `https://irserver2.eku.edu/Apps/DataPage/PROD/auth/reports_list_api${id}`;
+const getReportUrl = () => `${urlSegments.base}/${urlSegments.reports}`;
 
 // * groups modal save error
 // * search on grids
@@ -212,13 +178,13 @@ const getReportUrl = (id) =>
 
 // ! handle newline characters in text boxes like report notes
 
-const getAllGroupsPromise = () =>
-  fetch(
-    "https://irserver2.eku.edu/Apps/DataPage/PROD/auth/all_report_groups_api"
-  ).then((res) => res.json());
+// const table2GroupsKey = {
+//   reports: "report_groups",
+//   users: "groups",
+// };
 
 const AdminProvider = ({ children }) => {
-  const [allGroups, fetchAllGroups] = usePromise(getAllGroupsPromise);
+  const [allGroups, fetchAllGroups] = usePromise(groupsPromiseFactory);
 
   const allGroupsSet = new Set([allGroups].filter((el) => el).flat());
 
@@ -238,34 +204,34 @@ const AdminProvider = ({ children }) => {
     />
   );
 
-  const [modifiedRecords, setModifiedRecords] = useState({
-    reports: {},
-    users: {},
-  });
+  // const [modifiedRecords, setModifiedRecords] = useState({
+  //   reports: {},
+  //   users: {},
+  // });
 
-  const [datasets, fetchDatasets] = usePromise(promiseGetter);
+  const [datasets, fetchDatasets] = usePromise(datasetsPromiseFactory);
 
-  const origTables = useMemo(() => createTables(datasets), [datasets]);
+  const tables = useMemo(() => createTables(datasets), [datasets]);
 
-  const tables = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(origTables).map(([tId, recordsById]) => [
-          tId,
-          Object.fromEntries(
-            Object.entries(recordsById).map((entry) => {
-              const [rId] = entry;
-              if (rId in modifiedRecords[tId]) {
-                return [rId, modifiedRecords[tId][rId]];
-              }
+  // const tables = useMemo(
+  //   () =>
+  //     Object.fromEntries(
+  //       Object.entries(origTables).map(([tId, recordsById]) => [
+  //         tId,
+  //         Object.fromEntries(
+  //           Object.entries(recordsById).map((entry) => {
+  //             const [rId] = entry;
+  //             if (rId in modifiedRecords[tId]) {
+  //               return [rId, modifiedRecords[tId][rId]];
+  //             }
 
-              return entry;
-            })
-          ),
-        ])
-      ),
-    [origTables, modifiedRecords]
-  );
+  //             return entry;
+  //           })
+  //         ),
+  //       ])
+  //     ),
+  //   [origTables, modifiedRecords]
+  // );
 
   const labelLookup = useMemo(() => {
     return Object.fromEntries(
@@ -316,6 +282,11 @@ const AdminProvider = ({ children }) => {
   const [tempRecord, setTempRecord] = useState(null);
 
   if (record !== null && tempRecord === null) {
+    // if (tableId in table2GroupsKey && !(table2GroupsKey[tableId] in record)) {
+    //   setTempRecord({ [table2GroupsKey[tableId]]: [], ...record });
+    // } else {
+    //   setTempRecord(record);
+    // }
     if (tableId === "users" && !("groups" in record)) {
       setTempRecord({ groups: [], ...record });
     } else if (tableId === "reports" && !("report_groups" in record)) {
@@ -414,13 +385,9 @@ const AdminProvider = ({ children }) => {
         },
       ];
 
-      console.log(posts);
+      // console.log(posts.map(({ body }) => JSON.stringify(body)));
 
       handleSubmit(posts);
-
-      // setModifiedRecords((records) =>
-      //   storeModification({ record: tempRecord, recordId, records, tableId })
-      // );
     }
 
     if (tableId === "groups") {
@@ -440,41 +407,6 @@ const AdminProvider = ({ children }) => {
       }));
 
       handleSubmit(posts);
-
-      // setModifiedRecords((state) => {
-      //   const newState = Object.fromEntries(
-      //     Object.entries(state).map(([tId, recordsById]) => [
-      //       tId,
-      //       { ...recordsById },
-      //     ])
-      //   );
-
-      //   const changes = findEveryGroupChange({
-      //     newRecord: tempRecord,
-      //     oldRecord: record,
-      //     group: recordId,
-      //   });
-
-      //   changes.forEach(({ id, ...e }) => {
-      //     newState[e.target.name][id] = updateTableRecGroup(
-      //       e,
-      //       tables[e.target.name][id]
-      //     );
-      //   });
-
-      //   const posts = changes.map(({ id, ...e }) => ({
-      //     body: getBody(
-      //       e.target.name,
-      //       id,
-      //       updateTableRecGroup(e, tables[e.target.name][id])
-      //     ),
-      //     url: getUrl(e.target.name, id),
-      //   }));
-
-      //   handleSubmit(posts);
-
-      //   return newState;
-      // });
     }
   };
 
@@ -666,12 +598,25 @@ const AdminProvider = ({ children }) => {
               </FormChecklist>
             ) : (
               <FormInput
-                value={typeof value === "string" ? value : ""}
-                onChange={updateTempRecord}
+                // value={typeof value === "string" ? value : ""}
+                // onChange={updateTempRecord}
                 label={name}
-                name={name}
+                // name={name}
                 key={name}
-              ></FormInput>
+              >
+                <TextareaAutosize
+                  value={typeof value === "string" ? value : ""}
+                  style={{ overflow: "hidden", resize: "none" }}
+                  onChange={updateTempRecord}
+                  className="form-control"
+                  name={name}
+                ></TextareaAutosize>
+                {/* <AutoHeightTextarea
+                  value={typeof value === "string" ? value : ""}
+                  onChange={updateTempRecord}
+                  name={name}
+                ></AutoHeightTextarea> */}
+              </FormInput>
             )
           )}
         </>
@@ -707,123 +652,12 @@ const AdminProvider = ({ children }) => {
     ></Modal>
   );
 
+  console.log("modal record", tempRecord);
+
   return (
     <AdminContext.Provider value={{ quickFilter, btnGroup, dataGrid, modal }}>
       {children}
     </AdminContext.Provider>
-  );
-};
-
-const FormInput = ({
-  label = "Label",
-  className = "",
-  type = "text",
-  ...rest
-}) => {
-  const id = useId();
-
-  return (
-    <div className="mb-3">
-      <label className="form-label" htmlFor={id}>
-        {label}
-      </label>
-      {"children" in rest ? (
-        rest.children
-      ) : (
-        <input
-          className={["form-control", className].filter((el) => el).join(" ")}
-          type={type}
-          id={id}
-          {...rest}
-        />
-      )}
-    </div>
-  );
-};
-
-const FormCheck = ({
-  type = "checkbox",
-  label = "Label",
-  className = "",
-  ...rest
-}) => {
-  const id = useId();
-
-  return (
-    <div className="form-check">
-      <input
-        className={["form-check-input", className].filter((el) => el).join(" ")}
-        type={type}
-        id={id}
-        {...rest}
-      />
-      <label className="form-check-label" htmlFor={id}>
-        {label}
-      </label>
-    </div>
-  );
-};
-
-const FormChecklist = ({
-  children = [],
-  labelGetter,
-  isDisabled,
-  isChecked,
-  onChange,
-  name,
-}) => {
-  const [searchValue, setSearchValue] = useState("");
-
-  const onSearchChange = ({ target: { value } }) => setSearchValue(value);
-
-  const getLabel = (value) =>
-    typeof labelGetter === "function" ? labelGetter({ value, name }) : value;
-
-  const filteredChildren = children.filter((value) =>
-    getLabel(value).toLowerCase().includes(searchValue.toLowerCase().trim())
-  );
-
-  return (
-    <FormInput label={name} key={name}>
-      <input
-        className="form-control mb-2"
-        onChange={onSearchChange}
-        value={searchValue}
-        type="text"
-      />
-      <VirtualList className="overflow-y-scroll" style={{ height: 150 }}>
-        {filteredChildren.map((value) => (
-          <FormCheck
-            disabled={isDisabled({ value, name })}
-            checked={isChecked({ value, name })}
-            label={getLabel(value)}
-            onChange={onChange}
-            value={value}
-            name={name}
-            key={value}
-          ></FormCheck>
-        ))}
-      </VirtualList>
-    </FormInput>
-  );
-};
-
-const VirtualList = ({ children = [], ...props }) => {
-  const itemCount = children.length;
-
-  const { outerRef, innerRef, items } = useVirtual({ itemCount });
-
-  const childrenItems = items.map(({ measureRef, index }) => (
-    // Use the `measureRef` to measure the item size
-    <div ref={measureRef} key={index}>
-      {children[index]}
-    </div>
-  ));
-
-  return (
-    <div ref={outerRef} {...props}>
-      <div ref={innerRef}>{childrenItems}</div>
-    </div>
   );
 };
 

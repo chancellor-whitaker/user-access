@@ -1,27 +1,28 @@
 import { useId } from "react";
 
 export default function FormInput({
-  placeholder = "Chance",
-  label = "First name",
+  label = "Label",
+  className = "",
   type = "text",
   ...rest
 }) {
   const id = useId();
 
   return (
-    <>
-      <div className="mb-3">
-        <label className="form-label" htmlFor={id}>
-          {label}
-        </label>
+    <div className="mb-3">
+      <label className="form-label" htmlFor={id}>
+        {label}
+      </label>
+      {"children" in rest ? (
+        rest.children
+      ) : (
         <input
-          placeholder={placeholder}
-          className="form-control"
+          className={["form-control", className].filter((el) => el).join(" ")}
           type={type}
           id={id}
           {...rest}
         />
-      </div>
-    </>
+      )}
+    </div>
   );
 }

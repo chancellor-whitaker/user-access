@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-export default function usePromise(promise) {
+export default function usePromise(promiseFactory) {
   const [state, setState] = useState(null);
 
+  const run = useCallback(() => {
+    const promise = promiseFactory?.();
+    if (!promise) return;
+
+    let ignore = false;
+    promise.then((response) => !ignore && setState(response));
+
+    return () => {
+      ignore = true;
+    };
+  }, [promiseFactory]);
+
   useEffect(() => {
-    if (promise) {
-      let ignore = false;
+    run();
+  }, [run]);
 
-      promise.then((response) => !ignore && setState(response));
-
-      return () => {
-        ignore = true;
-      };
-    }
-  }, [promise]);
-
-  return state;
+  return [state, run];
 }
