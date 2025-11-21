@@ -324,25 +324,25 @@ const AdminProvider = ({ children }) => {
       method: "POST",
     });
 
-  const getBody = (tId, rId, row1) => {
+  const getBody = (tId, rId, row) => {
     // replace all /n with /r/n
     // replace all /r/n with /n, and then replace all /n with /r/n?
 
-    const row = Object.fromEntries(
-      Object.entries(row1).map((entry) => {
-        const [key, value] = entry;
+    // const row = Object.fromEntries(
+    //   Object.entries(row1).map((entry) => {
+    //     const [key, value] = entry;
 
-        if (typeof value === "string") {
-          const value1 = value.replaceAll("\r\n", "\n");
+    //     if (typeof value === "string") {
+    //       const value1 = value.replaceAll("\r\n", "\n");
 
-          const value2 = value1.replaceAll("\n", "\r\n");
+    //       const value2 = value1.replaceAll("\n", "\r\n");
 
-          return [key, value2];
-        }
+    //       return [key, value2];
+    //     }
 
-        return entry;
-      })
-    );
+    //     return entry;
+    //   })
+    // );
 
     // console.log(JSON.stringify(row));
 
@@ -677,7 +677,7 @@ const AdminProvider = ({ children }) => {
     ></Modal>
   );
 
-  console.log("modal record", tempRecord);
+  // console.log("modal record", tempRecord);
 
   return (
     <AdminContext.Provider value={{ quickFilter, btnGroup, dataGrid, modal }}>

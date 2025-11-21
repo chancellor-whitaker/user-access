@@ -1,3 +1,4 @@
+import FrameFinder from "./components/FrameFinder";
 import useAdmin from "./AdminContext/useAdmin";
 
 // all groups from reports even on users tab
@@ -87,4 +88,7 @@ export default function App() {
       {modal}
     </>
   );
+}
+export function A() {
+  // return <FrameFinder></FrameFinder>;
 }
