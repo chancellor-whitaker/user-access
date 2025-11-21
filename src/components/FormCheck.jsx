@@ -11,7 +11,9 @@ export default function FormCheck({
   return (
     <div className="form-check">
       <input
-        className={["form-check-input", className].filter((el) => el).join(" ")}
+        className={["form-check-input shadow-sm", className]
+          .filter((el) => el)
+          .join(" ")}
         type={type}
         id={id}
         {...rest}

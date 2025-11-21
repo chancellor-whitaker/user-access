@@ -1,4 +1,4 @@
-import FrameFinder from "./components/FrameFinder";
+// import FrameFinder from "./components/FrameFinder";
 import useAdmin from "./AdminContext/useAdmin";
 
 // all groups from reports even on users tab
@@ -74,6 +74,9 @@ import useAdmin from "./AdminContext/useAdmin";
 
 // updated report with id
 // send back report with id in it's updated form
+
+// don't display
+// -- data_moved
 
 export default function App() {
   const { quickFilter, btnGroup, dataGrid, modal } = useAdmin();

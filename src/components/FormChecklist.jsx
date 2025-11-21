@@ -26,7 +26,7 @@ export default function FormChecklist({
   return (
     <FormInput label={name} key={name}>
       <input
-        className="form-control mb-2"
+        className="form-control shadow-sm mb-2"
         onChange={onSearchChange}
         placeholder="Filter..."
         value={searchValue}

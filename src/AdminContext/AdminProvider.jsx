@@ -175,13 +175,25 @@ const getReportUrl = () => `${urlSegments.base}/${urlSegments.reports}`;
 // * add mechanism for sending new report back
 // * add mechanism for sending many reports & groups back
 // * add mechanism for refetching data after pushing changes
+// * handle newline characters in text boxes like report notes
 
-// ! handle newline characters in text boxes like report notes
+// ! meagan punctuation/grammar
+// ! make user active a radio Y or N
+// ! make report active a radio Y or N
+// ! borders instead of shadows on input elements
+// ! to report table, add active, id, title, & link
+// ! to user table, add active, admin, id, & groups
+// ? insert users & insert reports & create groups
+// ? how to handle acl flags for user groups? (groups listed as table or text box next to group name or another modal?)
 
-// const table2GroupsKey = {
-//   reports: "report_groups",
-//   users: "groups",
-// };
+const doNotDisplay = new Set([
+  "report_users_moved",
+  "report_data_moved",
+  "report_url_for",
+  "report_moved",
+]);
+
+const disabledFields = new Set(["report_id"]);
 
 const AdminProvider = ({ children }) => {
   const [allGroups, fetchAllGroups] = usePromise(groupsPromiseFactory);
@@ -212,6 +224,8 @@ const AdminProvider = ({ children }) => {
   const [datasets, fetchDatasets] = usePromise(datasetsPromiseFactory);
 
   const tables = useMemo(() => createTables(datasets), [datasets]);
+
+  console.log(tables);
 
   // const tables = useMemo(
   //   () =>
@@ -609,41 +623,44 @@ const AdminProvider = ({ children }) => {
     <>
       {tempRecord ? (
         <>
-          {Object.entries(tempRecord).map(([name, value]) =>
-            showChecklist(name) ? (
-              <FormChecklist
-                isDisabled={isDisabled}
-                labelGetter={getLabel}
-                onChange={handleCheck}
-                isChecked={isChecked}
-                name={name}
-                key={name}
-              >
-                {[...getList(name)].sort(sortByWasChecked(name))}
-              </FormChecklist>
-            ) : (
-              <FormInput
-                // value={typeof value === "string" ? value : ""}
-                // onChange={updateTempRecord}
-                label={name}
-                // name={name}
-                key={name}
-              >
-                <TextareaAutosize
-                  value={typeof value === "string" ? value : ""}
-                  style={{ overflow: "hidden", resize: "none" }}
-                  onChange={updateTempRecord}
-                  className="form-control"
+          {Object.entries(tempRecord)
+            .filter(([name]) => !doNotDisplay.has(name))
+            .map(([name, value]) =>
+              showChecklist(name) ? (
+                <FormChecklist
+                  isDisabled={isDisabled}
+                  labelGetter={getLabel}
+                  onChange={handleCheck}
+                  isChecked={isChecked}
                   name={name}
-                ></TextareaAutosize>
-                {/* <AutoHeightTextarea
+                  key={name}
+                >
+                  {[...getList(name)].sort(sortByWasChecked(name))}
+                </FormChecklist>
+              ) : (
+                <FormInput
+                  // value={typeof value === "string" ? value : ""}
+                  // onChange={updateTempRecord}
+                  label={name}
+                  // name={name}
+                  key={name}
+                >
+                  <TextareaAutosize
+                    value={typeof value === "string" ? value : ""}
+                    style={{ overflow: "hidden", resize: "none" }}
+                    disabled={disabledFields.has(name)}
+                    className="form-control shadow-sm"
+                    onChange={updateTempRecord}
+                    name={name}
+                  ></TextareaAutosize>
+                  {/* <AutoHeightTextarea
                   value={typeof value === "string" ? value : ""}
                   onChange={updateTempRecord}
                   name={name}
                 ></AutoHeightTextarea> */}
-              </FormInput>
-            )
-          )}
+                </FormInput>
+              )
+            )}
         </>
       ) : null}
     </>
