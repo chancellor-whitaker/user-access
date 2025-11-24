@@ -6,6 +6,7 @@ import { findNewSetElements, getJsonPromise, toTruthyArray } from "../utils";
 import AutoHeightTextarea from "../components/AutoHeightTextarea";
 import FormChecklist from "../components/FormChecklist";
 import FormInput from "../components/FormInput";
+import FormCheck from "../components/FormCheck";
 import usePromise from "../hooks/usePromise";
 import { urlSegments } from "../constants";
 import AdminContext from "./AdminContext";
@@ -178,11 +179,14 @@ const getReportUrl = () => `${urlSegments.base}/${urlSegments.reports}`;
 // * handle newline characters in text boxes like report notes
 
 // ! meagan punctuation/grammar
-// ! make user active a radio Y or N
-// ! make report active a radio Y or N
-// ! borders instead of shadows on input elements
-// ! to report table, add active, id, title, & link
-// ! to user table, add active, admin, id, & groups
+// ! report table in users modal
+// * make user active a radio Y or N
+// * make report active a radio Y or N
+// * borders instead of shadows on input elements
+// * to report table, add active, id, title, & link
+// * to user table, add active, admin, id, & groups
+// * only clicking id should open modal
+// * make report link clickable
 // ? insert users & insert reports & create groups
 // ? how to handle acl flags for user groups? (groups listed as table or text box next to group name or another modal?)
 
@@ -194,6 +198,11 @@ const doNotDisplay = new Set([
 ]);
 
 const disabledFields = new Set(["report_id"]);
+
+const idColDef = {
+  cellClass: "text-decoration-underline pointer",
+  field: "id",
+};
 
 const AdminProvider = ({ children }) => {
   const [allGroups, fetchAllGroups] = usePromise(groupsPromiseFactory);
@@ -224,8 +233,6 @@ const AdminProvider = ({ children }) => {
   const [datasets, fetchDatasets] = usePromise(datasetsPromiseFactory);
 
   const tables = useMemo(() => createTables(datasets), [datasets]);
-
-  console.log(tables);
 
   // const tables = useMemo(
   //   () =>
@@ -339,27 +346,6 @@ const AdminProvider = ({ children }) => {
     });
 
   const getBody = (tId, rId, row) => {
-    // replace all /n with /r/n
-    // replace all /r/n with /n, and then replace all /n with /r/n?
-
-    // const row = Object.fromEntries(
-    //   Object.entries(row1).map((entry) => {
-    //     const [key, value] = entry;
-
-    //     if (typeof value === "string") {
-    //       const value1 = value.replaceAll("\r\n", "\n");
-
-    //       const value2 = value1.replaceAll("\n", "\r\n");
-
-    //       return [key, value2];
-    //     }
-
-    //     return entry;
-    //   })
-    // );
-
-    // console.log(JSON.stringify(row));
-
     if (tId === "users") {
       return {
         [rId]: {
@@ -420,8 +406,6 @@ const AdminProvider = ({ children }) => {
         },
       ];
 
-      // console.log(posts.map(({ body }) => JSON.stringify(body)));
-
       handleSubmit(posts);
     }
 
@@ -465,8 +449,23 @@ const AdminProvider = ({ children }) => {
     setRecordId(null);
   };
 
-  const onRowClicked = ({ data: { id } }) =>
-    setRecordId((rId) => (id === rId ? null : id));
+  // const onRowClicked = (e) => {
+  //   const {
+  //     data: { id },
+  //   } = e;
+  //   setRecordId((rId) => (id === rId ? null : id));
+  // };
+
+  const onCellClicked = (e) => {
+    const {
+      colDef: { field },
+      data: { id },
+    } = e;
+
+    if (field === "id") {
+      setRecordId((rId) => (id === rId ? null : id));
+    }
+  };
 
   const btnGroup = (
     <div>
@@ -487,17 +486,87 @@ const AdminProvider = ({ children }) => {
     </div>
   );
 
+  const getRowsAndCols = () => {
+    const rowData =
+      tableId in sortedLists
+        ? sortedLists[tableId].map((id) => ({ id }))
+        : null;
+
+    const valueGetter = ({ colDef: { field }, data: { id } }) =>
+      tables[tableId][id]?.[field];
+
+    if (tableId === "reports") {
+      return {
+        columnDefs: [
+          { field: "report_active", headerName: "Active", valueGetter },
+          idColDef,
+          { field: "report_title", headerName: "Title", valueGetter },
+          {
+            cellRenderer: ({ value }) => (
+              <a
+                className="text-decoration-underline text-primary"
+                rel="noreferrer"
+                target="_blank"
+                href={value}
+              >
+                {value}
+              </a>
+            ),
+            field: "report_link",
+            headerName: "Link",
+            valueGetter,
+          },
+        ],
+        rowData,
+      };
+    }
+
+    if (tableId === "users") {
+      return {
+        columnDefs: [
+          { field: "user_active", headerName: "Active", valueGetter },
+          idColDef,
+          {
+            valueGetter: ({ data: { id } }) =>
+              [tables[tableId][id]?.groups]
+                .filter((el) => el)
+                .flat()
+                .find(
+                  ({ acl_report_id, acl_active }) =>
+                    acl_active && acl_report_id === "ADMIN"
+                )
+                ? "Y"
+                : "N",
+            headerName: "Admin",
+          },
+          {
+            valueGetter: ({ data: { id } }) =>
+              [tables[tableId][id]?.groups]
+                .filter((el) => el)
+                .flat()
+                .filter(({ acl_active }) => acl_active)
+                .map(({ acl_report_id }) => acl_report_id)
+                .join(", "),
+            headerName: "Groups",
+          },
+        ],
+        rowData,
+      };
+    }
+
+    return { rowData };
+  };
+
+  const { columnDefs = [idColDef], rowData } = getRowsAndCols();
+
   const dataGrid = (
     <div style={{ height: 500 }}>
       <AgGridReact
-        rowData={
-          tableId in sortedLists
-            ? sortedLists[tableId].map((id) => ({ id }))
-            : null
-        }
         quickFilterText={quickFilterText}
-        columnDefs={[{ field: "id" }]}
-        onRowClicked={onRowClicked}
+        onCellClicked={onCellClicked}
+        // onRowClicked={onRowClicked}
+        columnDefs={columnDefs}
+        rowData={rowData}
       />
     </div>
   );
@@ -624,6 +693,11 @@ const AdminProvider = ({ children }) => {
       {tempRecord ? (
         <>
           {Object.entries(tempRecord)
+            .sort(
+              ([a], [b]) =>
+                (b.split("_").includes("active") ? 1 : 0) -
+                (a.split("_").includes("active") ? 1 : 0)
+            )
             .filter(([name]) => !doNotDisplay.has(name))
             .map(([name, value]) =>
               showChecklist(name) ? (
@@ -645,14 +719,35 @@ const AdminProvider = ({ children }) => {
                   // name={name}
                   key={name}
                 >
-                  <TextareaAutosize
-                    value={typeof value === "string" ? value : ""}
-                    style={{ overflow: "hidden", resize: "none" }}
-                    disabled={disabledFields.has(name)}
-                    className="form-control shadow-sm"
-                    onChange={updateTempRecord}
-                    name={name}
-                  ></TextareaAutosize>
+                  {name.split("_").includes("active") ? (
+                    <div>
+                      <FormCheck
+                        onChange={updateTempRecord}
+                        checked={value === "Y"}
+                        name={name}
+                        value="Y"
+                        label="Y"
+                        inline
+                      ></FormCheck>
+                      <FormCheck
+                        onChange={updateTempRecord}
+                        checked={value === "N"}
+                        name={name}
+                        value="N"
+                        label="N"
+                        inline
+                      ></FormCheck>
+                    </div>
+                  ) : (
+                    <TextareaAutosize
+                      value={typeof value === "string" ? value : ""}
+                      style={{ overflow: "hidden", resize: "none" }}
+                      disabled={disabledFields.has(name)}
+                      className="form-control shadow-sm"
+                      onChange={updateTempRecord}
+                      name={name}
+                    ></TextareaAutosize>
+                  )}
                   {/* <AutoHeightTextarea
                   value={typeof value === "string" ? value : ""}
                   onChange={updateTempRecord}
@@ -693,8 +788,6 @@ const AdminProvider = ({ children }) => {
       body={modalBody}
     ></Modal>
   );
-
-  // console.log("modal record", tempRecord);
 
   return (
     <AdminContext.Provider value={{ quickFilter, btnGroup, dataGrid, modal }}>
