@@ -5,6 +5,7 @@ import FormCheck from "./FormCheck";
 import FormInput from "./FormInput";
 
 export default function FormChecklist({
+  nameFormatter = (x) => x,
   children = [],
   labelGetter,
   isDisabled,
@@ -24,7 +25,7 @@ export default function FormChecklist({
   );
 
   return (
-    <FormInput label={name} key={name}>
+    <FormInput label={nameFormatter(name)} key={name}>
       <input
         className="form-control shadow-sm mb-2"
         onChange={onSearchChange}

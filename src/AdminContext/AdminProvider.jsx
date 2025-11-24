@@ -178,8 +178,8 @@ const getReportUrl = () => `${urlSegments.base}/${urlSegments.reports}`;
 // * add mechanism for refetching data after pushing changes
 // * handle newline characters in text boxes like report notes
 
-// ! meagan punctuation/grammar
-// ! report table in users modal
+// * meagan punctuation/grammar
+// * report table in users modal
 // * make user active a radio Y or N
 // * make report active a radio Y or N
 // * borders instead of shadows on input elements
@@ -688,6 +688,30 @@ const AdminProvider = ({ children }) => {
     boolToBin(wasChecked({ value: b, name })) -
     boolToBin(wasChecked({ value: a, name }));
 
+  const getUserReports = () => {
+    if (tableId === "users" && tempRecord) {
+      const groups = new Set(
+        [tempRecord.groups]
+          .filter(Boolean)
+          .flat()
+          .filter(({ acl_active }) => acl_active)
+          .map(({ acl_report_id }) => acl_report_id)
+      );
+
+      return Object.values(tables.reports).filter((object) =>
+        (typeof object.report_groups === "string" ? object.report_groups : "")
+          .split(",")
+          .some((group) => groups.has(group))
+      );
+    }
+
+    return null;
+  };
+
+  const userReports = getUserReports();
+
+  console.log(userReports);
+
   const modalBody = (
     <>
       {tempRecord ? (
@@ -702,6 +726,7 @@ const AdminProvider = ({ children }) => {
             .map(([name, value]) =>
               showChecklist(name) ? (
                 <FormChecklist
+                  nameFormatter={labelFormatter}
                   isDisabled={isDisabled}
                   labelGetter={getLabel}
                   onChange={handleCheck}
@@ -715,7 +740,7 @@ const AdminProvider = ({ children }) => {
                 <FormInput
                   // value={typeof value === "string" ? value : ""}
                   // onChange={updateTempRecord}
-                  label={name}
+                  label={labelFormatter(typeof name === "string" ? name : "")}
                   // name={name}
                   key={name}
                 >
@@ -756,6 +781,18 @@ const AdminProvider = ({ children }) => {
                 </FormInput>
               )
             )}
+          {userReports ? (
+            <div>
+              <AgGridReact
+                columnDefs={[
+                  { field: "report_id", headerName: "Id" },
+                  { field: "report_title", headerName: "Title" },
+                ]}
+                domLayout="autoHeight"
+                rowData={userReports}
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
     </>
@@ -781,7 +818,7 @@ const AdminProvider = ({ children }) => {
 
   const modal = (
     <Modal
-      title={`${tableId}: ${recordId}`}
+      title={`${labelFormatter(tableId)}: ${recordId}`}
       footer={modalFooter}
       active={modalActive}
       close={closeModal}
@@ -795,5 +832,11 @@ const AdminProvider = ({ children }) => {
     </AdminContext.Provider>
   );
 };
+
+const labelFormatter = (string = "") =>
+  string
+    .split("_")
+    .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+    .join(" ");
 
 export default AdminProvider;
