@@ -204,6 +204,20 @@ const idColDef = {
   field: "id",
 };
 
+const autoSizeFn = (e) => {
+  // console.log(e);
+  const colDefs = e.api.getColumnDefs();
+  if (e.type === "gridSizeChanged") {
+    if (e.clientWidth / colDefs.length > 150) {
+      e.api.sizeColumnsToFit();
+    } else {
+      e.api.autoSizeAllColumns();
+    }
+  } else {
+    e.api.sizeColumnsToFit();
+  }
+};
+
 const AdminProvider = ({ children }) => {
   const [allGroups, fetchAllGroups] = usePromise(groupsPromiseFactory);
 
@@ -232,27 +246,13 @@ const AdminProvider = ({ children }) => {
 
   const [datasets, fetchDatasets] = usePromise(datasetsPromiseFactory);
 
+  const refetch = () => {
+    fetchDatasets();
+
+    fetchAllGroups();
+  };
+
   const tables = useMemo(() => createTables(datasets), [datasets]);
-
-  // const tables = useMemo(
-  //   () =>
-  //     Object.fromEntries(
-  //       Object.entries(origTables).map(([tId, recordsById]) => [
-  //         tId,
-  //         Object.fromEntries(
-  //           Object.entries(recordsById).map((entry) => {
-  //             const [rId] = entry;
-  //             if (rId in modifiedRecords[tId]) {
-  //               return [rId, modifiedRecords[tId][rId]];
-  //             }
-
-  //             return entry;
-  //           })
-  //         ),
-  //       ])
-  //     ),
-  //   [origTables, modifiedRecords]
-  // );
 
   const labelLookup = useMemo(() => {
     return Object.fromEntries(
@@ -378,57 +378,6 @@ const AdminProvider = ({ children }) => {
       ? getReportUrl("")
       : "";
 
-  const handleSubmit = async (posts) => {
-    await Promise.all(posts.map(postToPromise))
-      .then((responses) => {
-        // All requests succeeded
-        console.log("All responses:", responses);
-        return Promise.all(responses.map((res) => res.json()));
-      })
-      .then((data) => {
-        console.log("All response data:", data);
-      })
-      .catch((error) => {
-        console.error("One or more requests failed:", error);
-      });
-
-    fetchDatasets();
-
-    fetchAllGroups();
-  };
-
-  const save = () => {
-    if (tableId in tables) {
-      const posts = [
-        {
-          body: getBody(tableId, recordId, tempRecord),
-          url: getUrl(tableId, recordId),
-        },
-      ];
-
-      handleSubmit(posts);
-    }
-
-    if (tableId === "groups") {
-      const changes = findEveryGroupChange({
-        newRecord: tempRecord,
-        oldRecord: record,
-        group: recordId,
-      });
-
-      const posts = changes.map(({ id, ...e }) => ({
-        body: getBody(
-          e.target.name,
-          id,
-          updateTableRecGroup(e, tables[e.target.name][id])
-        ),
-        url: getUrl(e.target.name, id),
-      }));
-
-      handleSubmit(posts);
-    }
-  };
-
   const sortedLists = {
     ...Object.fromEntries(
       Object.entries(tables).map(([id, records]) => [
@@ -444,6 +393,8 @@ const AdminProvider = ({ children }) => {
   }
 
   const switchTable = (id) => {
+    refetch();
+
     setTableId(id);
 
     setRecordId(null);
@@ -489,7 +440,11 @@ const AdminProvider = ({ children }) => {
   const getRowsAndCols = () => {
     const rowData =
       tableId in sortedLists
-        ? sortedLists[tableId].map((id) => ({ id }))
+        ? sortedLists[tableId]
+            .map((id) => ({ id }))
+            .filter(
+              tableId === "groups" ? ({ id }) => allGroupsSet.has(id) : Boolean
+            )
         : null;
 
     const valueGetter = ({ colDef: { field }, data: { id } }) =>
@@ -563,8 +518,9 @@ const AdminProvider = ({ children }) => {
     <div style={{ height: 500 }}>
       <AgGridReact
         quickFilterText={quickFilterText}
+        onGridSizeChanged={autoSizeFn}
+        onRowDataUpdated={autoSizeFn}
         onCellClicked={onCellClicked}
-        // onRowClicked={onRowClicked}
         columnDefs={columnDefs}
         rowData={rowData}
       />
@@ -578,6 +534,57 @@ const AdminProvider = ({ children }) => {
   const closeModal = () => {
     setModalActive(false);
     setRecordId(null);
+  };
+
+  const handleSubmit = async (posts) => {
+    await Promise.all(posts.map(postToPromise))
+      .then((responses) => {
+        // All requests succeeded
+        console.log("All responses:", responses);
+        return Promise.all(responses.map((res) => res.json()));
+      })
+      .then((data) => {
+        console.log("All response data:", data);
+      })
+      .catch((error) => {
+        console.error("One or more requests failed:", error);
+      });
+
+    refetch();
+
+    closeModal();
+  };
+
+  const save = () => {
+    if (tableId in tables) {
+      const posts = [
+        {
+          body: getBody(tableId, recordId, tempRecord),
+          url: getUrl(tableId, recordId),
+        },
+      ];
+
+      handleSubmit(posts);
+    }
+
+    if (tableId === "groups") {
+      const changes = findEveryGroupChange({
+        newRecord: tempRecord,
+        oldRecord: record,
+        group: recordId,
+      });
+
+      const posts = changes.map(({ id, ...e }) => ({
+        body: getBody(
+          e.target.name,
+          id,
+          updateTableRecGroup(e, tables[e.target.name][id])
+        ),
+        url: getUrl(e.target.name, id),
+      }));
+
+      handleSubmit(posts);
+    }
   };
 
   const showChecklist = (name) => {
@@ -710,18 +717,13 @@ const AdminProvider = ({ children }) => {
 
   const userReports = getUserReports();
 
-  console.log(userReports);
+  const id2Order = { reports: reportKeyOrder, users: userKeyOrder, groups: [] };
 
   const modalBody = (
     <>
       {tempRecord ? (
         <>
-          {Object.entries(tempRecord)
-            .sort(
-              ([a], [b]) =>
-                (b.split("_").includes("active") ? 1 : 0) -
-                (a.split("_").includes("active") ? 1 : 0)
-            )
+          {Object.entries(sortByKeyOrder(tempRecord, id2Order[tableId]))
             .filter(([name]) => !doNotDisplay.has(name))
             .map(([name, value]) =>
               showChecklist(name) ? (
@@ -788,6 +790,8 @@ const AdminProvider = ({ children }) => {
                   { field: "report_id", headerName: "Id" },
                   { field: "report_title", headerName: "Title" },
                 ]}
+                onGridSizeChanged={autoSizeFn}
+                onRowDataUpdated={autoSizeFn}
                 domLayout="autoHeight"
                 rowData={userReports}
               />
@@ -806,7 +810,6 @@ const AdminProvider = ({ children }) => {
       <button
         onClick={() => {
           save();
-          closeModal();
         }}
         className="btn btn-primary"
         type="button"
@@ -826,6 +829,8 @@ const AdminProvider = ({ children }) => {
     ></Modal>
   );
 
+  console.log(tempRecord);
+
   return (
     <AdminContext.Provider value={{ quickFilter, btnGroup, dataGrid, modal }}>
       {children}
@@ -833,10 +838,38 @@ const AdminProvider = ({ children }) => {
   );
 };
 
+// ! order of form
+
+const reportKeyOrder = [
+  "report_active",
+  "report_id",
+  "report_title",
+  "report_description",
+  "report_groups",
+  "report_link",
+  "report_image_link",
+  "report_notes",
+];
+
+const userKeyOrder = ["user_active", "groups"];
+
+const sortByKeyOrder = (obj, ord) => {
+  const quantify = (x) =>
+    ord.includes(x) ? ord.indexOf(x) : Number.MAX_SAFE_INTEGER;
+
+  return Object.fromEntries(
+    Object.entries(obj).sort(([a], [b]) => quantify(a) - quantify(b))
+  );
+};
+
+// reports--active,id,title,desc,groups,link,img link,notes
+
 const labelFormatter = (string = "") =>
-  string
-    .split("_")
-    .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
-    .join(" ");
+  typeof string === "string" && string.length > 0
+    ? string
+        .split("_")
+        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(" ")
+    : "";
 
 export default AdminProvider;
